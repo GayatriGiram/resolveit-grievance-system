@@ -191,4 +191,30 @@ public class AuthService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
+
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        String normalizedEmail = normalizeEmail(email);
+
+        if (currentPassword == null || currentPassword.trim().isEmpty()) {
+            throw new RuntimeException("Current password is required");
+        }
+
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new RuntimeException("New password must be at least 6 characters");
+        }
+
+        if (currentPassword.equals(newPassword)) {
+            throw new RuntimeException("New password must be different from current password");
+        }
+
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
 }

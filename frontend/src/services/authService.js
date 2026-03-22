@@ -156,6 +156,25 @@ export const validateToken = async () => {
   }
 };
 
+export const changePassword = async ({ currentPassword, newPassword }) => {
+  try {
+    const response = await api.put('/change-password', {
+      currentPassword,
+      newPassword,
+    });
+
+    return {
+      success: true,
+      message: response.data || 'Password changed successfully',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data || 'Failed to change password. Please try again.',
+    };
+  }
+};
+
 /**
  * Axios interceptor to add JWT token to all requests
  */

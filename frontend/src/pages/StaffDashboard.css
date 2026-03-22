@@ -12,6 +12,36 @@
   margin-bottom: 20px;
 }
 
+.staff-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.staff-email {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.staff-theme-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #1f2937;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.staff-theme-icon-btn:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
 .staff-header h1 {
   margin: 0;
 }
@@ -111,4 +141,28 @@
 .staff-error {
   text-align: center;
   margin-top: 100px;
+}
+
+.staff-page.theme-dark {
+  background: #0b1220;
+  color: #e5e7eb;
+}
+
+.staff-page.theme-dark .staff-section,
+.staff-page.theme-dark .staff-card,
+.staff-page.theme-dark .staff-logout,
+.staff-page.theme-dark .staff-btn,
+.staff-page.theme-dark .staff-theme-icon-btn {
+  background: #0f172a;
+  color: #e5e7eb;
+  border-color: #334155;
+}
+
+.staff-page.theme-dark .staff-table th,
+.staff-page.theme-dark .staff-table td {
+  border-bottom-color: #334155;
+}
+
+.staff-page.theme-dark .staff-email {
+  color: #94a3b8;
 }

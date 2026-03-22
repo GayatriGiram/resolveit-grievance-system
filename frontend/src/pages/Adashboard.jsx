@@ -11,6 +11,7 @@ import {
   updateAdminUser,
 } from '../services/adminService';
 import API_URL from '../services/apiConfig';
+import { getUiPreferences, updateUiPreferences } from '../services/preferencesService';
 import './Adashboard.css';
 import {
   FiHome, FiFileText, FiCheckCircle, FiBarChart2,
@@ -18,7 +19,7 @@ import {
   FiClock, FiAlertCircle, FiTrendingUp, FiUsers,
   FiCalendar, FiBell,
   FiDownload, FiRefreshCw, FiFilter, FiPlus,
-  FiExternalLink,
+  FiExternalLink, FiMoon, FiSun,
 } from 'react-icons/fi';
 
 const ADMIN_SETTINGS_KEY = 'resolveit-admin-settings';
@@ -198,6 +199,57 @@ const getTimelineEntries = (complaint) => {
   }));
 };
 
+const RESOLVED_TIMELINE_STEPS = [
+  { key: 'submitted', label: 'Complaint Submitted', matches: [] },
+  { key: 'pending', label: 'Pending', matches: ['pending', 'open'] },
+  { key: 'inprogress', label: 'In Progress', matches: ['inprogress'] },
+  { key: 'escalated', label: 'Escalated', matches: ['escalated'] },
+  { key: 'resolved', label: 'Resolved', matches: ['resolved'] },
+];
+
+const buildResolvedTimelineSteps = (complaint) => {
+  const timelineEntries = getTimelineEntries(complaint);
+
+  const latestByStatus = timelineEntries.reduce((accumulator, entry) => {
+    const normalized = normalizeStatus(entry?.status || '');
+    if (!normalized) {
+      return accumulator;
+    }
+
+    const entryTime = new Date(entry?.when || 0).getTime();
+    const hasValidTime = Number.isFinite(entryTime) && entryTime > 0;
+
+    const existing = accumulator[normalized];
+    if (!existing || (hasValidTime && entryTime > existing.timeValue)) {
+      accumulator[normalized] = {
+        when: entry?.when,
+        timeValue: hasValidTime ? entryTime : 0,
+      };
+    }
+
+    return accumulator;
+  }, {});
+
+  return RESOLVED_TIMELINE_STEPS.map((step) => {
+    if (step.key === 'submitted') {
+      return {
+        ...step,
+        timestamp: complaint?.createdAt || null,
+      };
+    }
+
+    const matched = step.matches
+      .map((statusKey) => latestByStatus[statusKey])
+      .filter(Boolean)
+      .sort((left, right) => right.timeValue - left.timeValue)[0];
+
+    return {
+      ...step,
+      timestamp: matched?.when || null,
+    };
+  });
+};
+
 const toDateKey = (value) => {
   const date = value ? new Date(value) : new Date();
   const year = date.getFullYear();
@@ -362,6 +414,7 @@ const ADashboard = ({ onNavigateLanding }) => {
   const [notificationState, setNotificationState] = useState(() => safeJsonParse(localStorage.getItem(ADMIN_NOTIFICATION_KEY), {}));
   const [reportPeriod, setReportPeriod] = useState('30d');
   const [sectionExportFormat, setSectionExportFormat] = useState('csv');
+  const [uiPreferences, setUiPreferences] = useState(() => getUiPreferences());
 
   useEffect(() => {
     localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(settings));
@@ -374,6 +427,10 @@ const ADashboard = ({ onNavigateLanding }) => {
   useEffect(() => {
     localStorage.setItem(ADMIN_NOTIFICATION_KEY, JSON.stringify(notificationState));
   }, [notificationState]);
+
+  useEffect(() => {
+    updateUiPreferences(uiPreferences);
+  }, [uiPreferences]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -674,6 +731,14 @@ const ADashboard = ({ onNavigateLanding }) => {
 
   const restoreNotifications = () => {
     setNotificationState({});
+  };
+
+  const handleThemeChange = (value) => {
+    setUiPreferences((prev) => ({ ...prev, theme: value }));
+  };
+
+  const toggleTheme = () => {
+    handleThemeChange(uiPreferences.theme === 'dark' ? 'light' : 'dark');
   };
 
   const sortedComplaints = useMemo(() => {
@@ -1212,7 +1277,7 @@ const ADashboard = ({ onNavigateLanding }) => {
   ];
 
   return (
-    <div className="admin-dashboard">
+    <div className={`admin-dashboard theme-${uiPreferences.theme}`}>
       {sidebarOpen && (
         <div
           className="admin-sidebar-overlay"
@@ -1297,6 +1362,15 @@ const ADashboard = ({ onNavigateLanding }) => {
               disabled={refreshing}
             >
               <FiRefreshCw size={20} className={refreshing ? 'spinning' : ''} />
+            </button>
+            <button
+              className="admin-theme-icon-btn"
+              type="button"
+              onClick={toggleTheme}
+              aria-label={uiPreferences.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={uiPreferences.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            >
+              {uiPreferences.theme === 'dark' ? <FiSun size={18} /> : <FiMoon size={18} />}
             </button>
             <span className="admin-user-email">{user?.email}</span>
           </div>
@@ -1732,17 +1806,24 @@ const ADashboard = ({ onNavigateLanding }) => {
                             </a>
                           ) : 'No file'}
                         </td>
-                        <td>
-                          {!!getTimelineEntries(complaint).length && (
-                            <div className="timeline-mini">
-                              {getTimelineEntries(complaint).slice(-4).map((log, index) => (
-                                <p key={`${complaint.id}-resolved-log-${index}`}>
-                                  {formatDateTime(log.when)} - {(log.status || log.eventType || '').toUpperCase()} - {log.comment || 'Updated'}{log.actor ? ` (by ${log.actor})` : ''}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-                          {!getTimelineEntries(complaint).length && 'No timeline yet'}
+                        <td className="resolved-timeline-cell">
+                          <div className="resolved-timeline-mini">
+                            {buildResolvedTimelineSteps(complaint).map((step) => {
+                              const hasTimestamp = Boolean(step.timestamp);
+                              return (
+                                <div
+                                  key={`${complaint.id}-resolved-step-${step.key}`}
+                                  className={`resolved-timeline-step ${hasTimestamp ? 'done' : 'waiting'}`}
+                                >
+                                  <span className="resolved-timeline-dot" aria-hidden="true" />
+                                  <div className="resolved-timeline-content">
+                                    <p className="resolved-timeline-label">{step.label}</p>
+                                    <p className="resolved-timeline-meta">{hasTimestamp ? formatDateTime(step.timestamp) : 'Waiting'}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </td>
                         <td>{complaint.adminReview || 'No reply yet'}</td>
                         <td className="complaint-action-cell">

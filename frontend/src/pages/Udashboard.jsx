@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { logout } from '../services/authService';
+import { changePassword, logout } from '../services/authService';
 import API_URL from '../services/apiConfig';
+import { getUiPreferences, updateUiPreferences } from '../services/preferencesService';
 import './Udashboard.css';
 import { 
   FiHome, FiFileText, FiCheckCircle, FiBarChart2, 
   FiSettings, FiUser, FiPlus, FiLogOut, FiMenu, FiX,
-  FiClock, FiAlertCircle
+  FiClock, FiAlertCircle, FiMoon, FiSun
 } from 'react-icons/fi';
 
 const ALLOWED_PROOF_EXTENSIONS = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+const USER_SETTINGS_KEY = 'resolveit-user-settings';
+
+const DEFAULT_USER_SETTINGS = {
+  emailNotifications: true,
+  smsNotifications: true,
+  profilePrivate: false,
+};
+
 const COMPLAINT_CATEGORIES = [
   { value: 'network', label: 'Network Issue' },
   { value: 'wifi-connectivity', label: 'Wi-Fi Connectivity' },
@@ -64,6 +73,32 @@ const UDashboard = ({ onNavigateLanding }) => {
   const [message, setMessage] = useState('');
   const [pageLoading, setPageLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [uiPreferences, setUiPreferences] = useState(() => getUiPreferences());
+  const [userSettings, setUserSettings] = useState(() => {
+    try {
+      const stored = localStorage.getItem(USER_SETTINGS_KEY);
+      return stored ? { ...DEFAULT_USER_SETTINGS, ...JSON.parse(stored) } : DEFAULT_USER_SETTINGS;
+    } catch {
+      return DEFAULT_USER_SETTINGS;
+    }
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmNewPassword: '',
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState('');
+  const [settingsMessageType, setSettingsMessageType] = useState('success');
+
+  useEffect(() => {
+    localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(userSettings));
+  }, [userSettings]);
+
+  useEffect(() => {
+    updateUiPreferences(uiPreferences);
+  }, [uiPreferences]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Check if user is authenticated
@@ -188,6 +223,67 @@ const UDashboard = ({ onNavigateLanding }) => {
     onNavigateLanding();
   };
 
+  const handleThemeChange = (value) => {
+    setUiPreferences((prev) => ({ ...prev, theme: value }));
+  };
+
+  const toggleTheme = () => {
+    handleThemeChange(uiPreferences.theme === 'dark' ? 'light' : 'dark');
+  };
+
+  const handleLanguageChange = (value) => {
+    setUiPreferences((prev) => ({ ...prev, language: value }));
+  };
+
+  const updateUserSetting = (field, value) => {
+    setUserSettings((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePasswordFieldChange = (event) => {
+    const { name, value } = event.target;
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleChangePassword = async (event) => {
+    event.preventDefault();
+    setSettingsMessage('');
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmNewPassword) {
+      setSettingsMessageType('error');
+      setSettingsMessage('Please fill all password fields.');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setSettingsMessageType('error');
+      setSettingsMessage('New password must be at least 6 characters.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmNewPassword) {
+      setSettingsMessageType('error');
+      setSettingsMessage('New password and confirm password do not match.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    const response = await changePassword({
+      currentPassword: passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword,
+    });
+    setPasswordLoading(false);
+
+    if (!response.success) {
+      setSettingsMessageType('error');
+      setSettingsMessage(response.message || 'Unable to change password.');
+      return;
+    }
+
+    setSettingsMessageType('success');
+    setSettingsMessage('Password changed successfully.');
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+  };
+
   const getComplaintStats = () => {
     const stats = {
       total: complaints.length,
@@ -284,18 +380,38 @@ const UDashboard = ({ onNavigateLanding }) => {
     return null;
   }
 
+  const isHindi = uiPreferences.language === 'hi';
+  const i18n = {
+    welcome: isHindi ? 'स्वागत है' : 'Welcome',
+    settingsTitle: isHindi ? 'सेटिंग्स और प्राथमिकताएं' : 'Settings & Preferences',
+    settingsSubtitle: isHindi ? 'अपने अनुभव को अनुकूलित करें' : 'Customize your experience',
+    notifications: isHindi ? 'सूचनाएं' : 'Notifications',
+    privacy: isHindi ? 'गोपनीयता और सुरक्षा' : 'Privacy & Security',
+    preferences: isHindi ? 'प्राथमिकताएं' : 'Preferences',
+    emailNotifications: isHindi ? 'शिकायत अपडेट के लिए ईमेल सूचनाएं' : 'Email notifications for complaint updates',
+    smsNotifications: isHindi ? 'तत्काल अपडेट के लिए SMS सूचनाएं' : 'SMS notifications for urgent updates',
+    profilePrivate: isHindi ? 'प्रोफाइल निजी करें' : 'Make profile private',
+    changePassword: isHindi ? 'पासवर्ड बदलें' : 'Change Password',
+    changing: isHindi ? 'बदला जा रहा है...' : 'Changing...',
+    currentPassword: isHindi ? 'वर्तमान पासवर्ड' : 'Current password',
+    newPassword: isHindi ? 'नया पासवर्ड' : 'New password',
+    confirmPassword: isHindi ? 'नया पासवर्ड पुष्टि करें' : 'Confirm new password',
+    language: isHindi ? 'भाषा' : 'Language',
+    theme: isHindi ? 'थीम' : 'Theme',
+  };
+
   const menuItems = [
-    { id: 'home', label: 'Home', icon: FiHome },
-    { id: 'new-complaint', label: 'File New Complaint', icon: FiPlus },
-    { id: 'complaints', label: 'View Complaints', icon: FiFileText },
-    { id: 'track', label: 'Track Status', icon: FiClock },
-    { id: 'analytics', label: 'Analytics', icon: FiBarChart2 },
-    { id: 'account', label: 'My Account', icon: FiUser },
-    { id: 'settings', label: 'Settings', icon: FiSettings },
+    { id: 'home', label: isHindi ? 'होम' : 'Home', icon: FiHome },
+    { id: 'new-complaint', label: isHindi ? 'नई शिकायत दर्ज करें' : 'File New Complaint', icon: FiPlus },
+    { id: 'complaints', label: isHindi ? 'शिकायतें देखें' : 'View Complaints', icon: FiFileText },
+    { id: 'track', label: isHindi ? 'स्थिति ट्रैक करें' : 'Track Status', icon: FiClock },
+    { id: 'analytics', label: isHindi ? 'विश्लेषण' : 'Analytics', icon: FiBarChart2 },
+    { id: 'account', label: isHindi ? 'मेरा अकाउंट' : 'My Account', icon: FiUser },
+    { id: 'settings', label: isHindi ? 'सेटिंग्स' : 'Settings', icon: FiSettings },
   ];
 
   return (
-    <div className="user-dashboard">
+    <div className={`user-dashboard theme-${uiPreferences.theme}`}>
       {/* Overlay for mobile */}
       {sidebarOpen && (
         <div 
@@ -365,8 +481,17 @@ const UDashboard = ({ onNavigateLanding }) => {
           >
             <FiMenu size={20} />
           </button>
-          <h1 className="page-title">Welcome, {user?.name}!</h1>
+          <h1 className="page-title">{i18n.welcome}, {user?.name}!</h1>
           <div className="top-bar-right">
+            <button
+              className="theme-icon-btn"
+              type="button"
+              onClick={toggleTheme}
+              aria-label={uiPreferences.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={uiPreferences.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            >
+              {uiPreferences.theme === 'dark' ? <FiSun size={18} /> : <FiMoon size={18} />}
+            </button>
             <span className="user-email">{user?.email}</span>
           </div>
         </div>
@@ -908,55 +1033,113 @@ const UDashboard = ({ onNavigateLanding }) => {
           {activeSection === 'settings' && (
             <div className="section settings-section">
               <div className="section-header">
-                <h1>Settings & Preferences</h1>
-                <p>Customize your experience</p>
+                <h1>{i18n.settingsTitle}</h1>
+                <p>{i18n.settingsSubtitle}</p>
               </div>
 
               <div className="settings-grid">
                 <div className="setting-card">
-                  <h3>Notifications</h3>
+                  <h3>{i18n.notifications}</h3>
                   <div className="setting-item">
                     <label htmlFor="email-notif" className="checkbox-label">
-                      <input type="checkbox" id="email-notif" defaultChecked />
-                      <span>Email notifications for complaint updates</span>
+                      <input
+                        type="checkbox"
+                        id="email-notif"
+                        checked={Boolean(userSettings.emailNotifications)}
+                        onChange={(event) => updateUserSetting('emailNotifications', event.target.checked)}
+                      />
+                      <span>{i18n.emailNotifications}</span>
                     </label>
                   </div>
                   <div className="setting-item">
                     <label htmlFor="sms-notif" className="checkbox-label">
-                      <input type="checkbox" id="sms-notif" defaultChecked />
-                      <span>SMS notifications for urgent updates</span>
+                      <input
+                        type="checkbox"
+                        id="sms-notif"
+                        checked={Boolean(userSettings.smsNotifications)}
+                        onChange={(event) => updateUserSetting('smsNotifications', event.target.checked)}
+                      />
+                      <span>{i18n.smsNotifications}</span>
                     </label>
                   </div>
                 </div>
 
                 <div className="setting-card">
-                  <h3>Privacy & Security</h3>
+                  <h3>{i18n.privacy}</h3>
                   <div className="setting-item">
                     <label htmlFor="profile-private" className="checkbox-label">
-                      <input type="checkbox" id="profile-private" />
-                      <span>Make profile private</span>
+                      <input
+                        type="checkbox"
+                        id="profile-private"
+                        checked={Boolean(userSettings.profilePrivate)}
+                        onChange={(event) => updateUserSetting('profilePrivate', event.target.checked)}
+                      />
+                      <span>{i18n.profilePrivate}</span>
                     </label>
                   </div>
                   <div className="setting-item">
-                    <button className="link-btn">Change Password</button>
+                    <form className="password-form" onSubmit={handleChangePassword}>
+                      <input
+                        type="password"
+                        name="currentPassword"
+                        className="form-input"
+                        placeholder={i18n.currentPassword}
+                        value={passwordForm.currentPassword}
+                        onChange={handlePasswordFieldChange}
+                      />
+                      <input
+                        type="password"
+                        name="newPassword"
+                        className="form-input"
+                        placeholder={i18n.newPassword}
+                        value={passwordForm.newPassword}
+                        onChange={handlePasswordFieldChange}
+                      />
+                      <input
+                        type="password"
+                        name="confirmNewPassword"
+                        className="form-input"
+                        placeholder={i18n.confirmPassword}
+                        value={passwordForm.confirmNewPassword}
+                        onChange={handlePasswordFieldChange}
+                      />
+                      <button className="link-btn" type="submit" disabled={passwordLoading}>
+                        {passwordLoading ? i18n.changing : i18n.changePassword}
+                      </button>
+                    </form>
+                    {settingsMessage && (
+                      <p className={`settings-message ${settingsMessageType}`}>{settingsMessage}</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="setting-card">
-                  <h3>Preferences</h3>
+                  <h3>{i18n.preferences}</h3>
                   <div className="setting-item">
-                    <label htmlFor="language" className="form-label">Language</label>
-                    <select id="language" className="form-select">
+                    <label htmlFor="language" className="form-label">{i18n.language}</label>
+                    <select
+                      id="language"
+                      className="form-select"
+                      value={uiPreferences.language}
+                      onChange={(event) => handleLanguageChange(event.target.value)}
+                    >
                       <option value="en">English</option>
                       <option value="hi">Hindi</option>
                     </select>
                   </div>
                   <div className="setting-item">
-                    <label htmlFor="theme" className="form-label">Theme</label>
-                    <select id="theme" className="form-select">
-                      <option value="dark">Dark</option>
-                      <option value="light">Light</option>
-                    </select>
+                    <label htmlFor="theme" className="form-label">{i18n.theme}</label>
+                    <button
+                      id="theme"
+                      className="theme-icon-btn settings-theme-btn"
+                      type="button"
+                      onClick={toggleTheme}
+                      aria-label={uiPreferences.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                      title={uiPreferences.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                    >
+                      {uiPreferences.theme === 'dark' ? <FiSun size={18} /> : <FiMoon size={18} />}
+                      <span>{uiPreferences.theme === 'dark' ? 'Dark' : 'Light'}</span>
+                    </button>
                   </div>
                 </div>
               </div>

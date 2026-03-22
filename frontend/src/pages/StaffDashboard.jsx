@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FiClock, FiCheckCircle, FiCalendar, FiLogOut, FiUser } from 'react-icons/fi';
+import { FiClock, FiCheckCircle, FiCalendar, FiLogOut, FiMoon, FiSun, FiUser } from 'react-icons/fi';
 import { getCurrentUser, logout } from '../services/authService';
+import { getUiPreferences, updateUiPreferences } from '../services/preferencesService';
 import {
   escalateStaffComplaint,
   getStaffAttendance,
@@ -16,6 +17,11 @@ const StaffDashboard = ({ onNavigateLanding }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState({});
+  const [uiPreferences, setUiPreferences] = useState(() => getUiPreferences());
+
+  useEffect(() => {
+    updateUiPreferences(uiPreferences);
+  }, [uiPreferences]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -48,6 +54,14 @@ const StaffDashboard = ({ onNavigateLanding }) => {
   const handleLogout = () => {
     logout();
     onNavigateLanding();
+  };
+
+  const handleThemeChange = (value) => {
+    setUiPreferences((prev) => ({ ...prev, theme: value }));
+  };
+
+  const toggleTheme = () => {
+    handleThemeChange(uiPreferences.theme === 'dark' ? 'light' : 'dark');
   };
 
   const formatDateTime = (value) => {
@@ -135,7 +149,7 @@ const StaffDashboard = ({ onNavigateLanding }) => {
     : null;
 
   return (
-    <div className="staff-page">
+    <div className={`staff-page theme-${uiPreferences.theme}`}>
       <header className="staff-header">
         <div>
           <h1>Staff Dashboard</h1>
@@ -145,9 +159,21 @@ const StaffDashboard = ({ onNavigateLanding }) => {
             {specializationLabel ? ` - ${specializationLabel}` : ''}
           </p>
         </div>
-        <button className="staff-logout" onClick={handleLogout}>
-          <FiLogOut size={16} /> Logout
-        </button>
+        <div className="staff-header-right">
+          <button
+            className="staff-theme-icon-btn"
+            type="button"
+            onClick={toggleTheme}
+            aria-label={uiPreferences.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={uiPreferences.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          >
+            {uiPreferences.theme === 'dark' ? <FiSun size={16} /> : <FiMoon size={16} />}
+          </button>
+          <span className="staff-email">{user?.email}</span>
+          <button className="staff-logout" onClick={handleLogout}>
+            <FiLogOut size={16} /> Logout
+          </button>
+        </div>
       </header>
 
       {isSeniorHandler && (
